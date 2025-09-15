@@ -1,0 +1,179 @@
+const asyncHandler = require("../middleware/asyncHandler");
+const Order = require("../models/orderModel");
+// const { sendBookingEmail } = require("../utils/emailService");
+
+// @desc    Create a new booking
+// @route   POST /api/bookings
+// @access  Private (customer)
+const createBooking = asyncHandler(async (req, res) => {
+  const { plan, bookingDate, slot, numberOfPeople, downPayment, location, notes, price } = req.body;
+
+  if (!plan || !bookingDate || !location || !price) {
+    res.status(400);
+    throw new Error("Missing required booking details");
+  }
+
+  const booking = new Order({
+    user: req.user._id, // logged in customer
+    plan,
+    bookingDate,
+    slot,
+    location,
+    notes,
+    price,
+    numberOfPeople,
+    downPayment,
+  });
+
+  const createdBooking = await booking.save();
+
+  const populatedBooking = await Order.findById(createdBooking._id)
+    .populate("user", "name email")
+    .populate("plan", "name description price");
+
+  // Send confirmation email
+  // await sendBookingEmail(populatedBooking);
+
+  res.status(201).json(populatedBooking);
+});
+
+// @desc    Get logged-in user's bookings
+// @route   GET /api/bookings/mybookings
+// @access  Private
+const getMyBookings = asyncHandler(async (req, res) => {
+  const bookings = await Order.find({ user: req.user._id }).sort({ createdAt: -1 });
+  res.status(200).json(bookings);
+});
+
+const getOrders = async (req, res) => {
+  const pageSize = 10;
+  const page = Number(req.query.pageNumber) || 1;
+
+  // Optional search
+  const keyword = req.query.keyword ? { name: { $regex: req.query.keyword, $options: "i" } } : {};
+
+  const count = await Order.countDocuments({ ...keyword });
+
+  const orders = await Order.find({ ...keyword })
+    .sort({ name: 1 })
+    .limit(pageSize)
+    .skip(pageSize * (page - 1));
+
+  res.json({
+    orders,
+    page,
+    pages: Math.ceil(count / pageSize),
+    total: count,
+  });
+};
+
+// @desc    Get booking by ID
+// @route   GET /api/bookings/:id
+// @access  Private
+const getBookingById = asyncHandler(async (req, res) => {
+  const booking = await Order.findById(req.params.id)
+    .populate("user", "name email phone age")
+    .populate("plan", "name duration");
+
+  if (booking) {
+    res.status(200).json(booking);
+  } else {
+    res.status(404);
+    throw new Error("Booking not found");
+  }
+});
+
+// @desc    Mark booking as paid
+// @route   PUT /api/bookings/:id/pay
+// @access  Private
+const markBookingAsPaid = asyncHandler(async (req, res) => {
+  const booking = await Order.findById(req.params.id);
+
+  if (booking) {
+    booking.isPaid = true;
+    booking.paidAt = Date.now();
+    booking.paymentResult = {
+      id: req.body.id,
+      status: req.body.status,
+      update_time: req.body.update_time,
+      email_address: req.body.payer?.email_address,
+    };
+
+    const updatedBooking = await booking.save();
+    res.status(200).json(updatedBooking);
+  } else {
+    res.status(404);
+    throw new Error("Booking not found");
+  }
+});
+
+// @desc    Mark booking as completed
+// @route   PUT /api/bookings/:id/complete
+// @access  Private/Admin
+const markBookingAsCompleted = asyncHandler(async (req, res) => {
+  const booking = await Order.findById(req.params.id);
+
+  if (booking) {
+    booking.isCompleted = true;
+    booking.completedAt = Date.now();
+
+    const updatedBooking = await booking.save();
+    res.status(200).json(updatedBooking);
+  } else {
+    res.status(404);
+    throw new Error("Booking not found");
+  }
+});
+
+// @desc    Cancel booking
+// @route   PUT /api/bookings/:id/cancel
+// @access  Private
+const cancelBooking = asyncHandler(async (req, res) => {
+  const booking = await Order.findById(req.params.id);
+
+  if (booking) {
+    booking.isCanceled = true;
+    booking.canceledAt = Date.now();
+
+    const updatedBooking = await booking.save();
+    res.status(200).json(updatedBooking);
+  } else {
+    res.status(404);
+    throw new Error("Booking not found");
+  }
+});
+
+// @desc    Get all bookings (admin)
+// @route   GET /api/bookings
+// @access  Private/Admin
+const getAllBookings = asyncHandler(async (req, res) => {
+  const pageSize = 10;
+  const page = Number(req.query.pageNumber) || 1;
+
+  const count = await Order.countDocuments();
+
+  const orders = await Order.find({})
+    .sort({ createdAt: -1 })
+    .skip(pageSize * (page - 1))
+    .limit(pageSize)
+    .populate("user", "name email")
+    .populate("plan", "name price");
+
+  res.status(200).json({
+    orders,
+    page,
+    pages: Math.ceil(count / pageSize),
+    total: count,
+  });
+});
+
+module.exports = {
+  createBooking,
+  getMyBookings,
+  getBookingById,
+  markBookingAsPaid,
+  markBookingAsCompleted,
+  cancelBooking,
+  getAllBookings,
+  getOrders,
+};
