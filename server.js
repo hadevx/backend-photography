@@ -36,6 +36,7 @@ app.use(
       "https://admin.webschema.online",
       "https://storefront2.webschema.online",
       "https://photography.webschema.online",
+      "https://admin-photography.webschema.online",
     ],
     credentials: true,
   })
