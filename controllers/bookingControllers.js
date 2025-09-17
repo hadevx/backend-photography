@@ -1,12 +1,23 @@
 const asyncHandler = require("../middleware/asyncHandler");
 const Order = require("../models/orderModel");
+const Time = require("../models/timeModel");
 // const { sendBookingEmail } = require("../utils/emailService");
 
 // @desc    Create a new booking
 // @route   POST /api/bookings
 // @access  Private (customer)
 const createBooking = asyncHandler(async (req, res) => {
-  const { plan, bookingDate, slot, numberOfPeople, downPayment, location, notes, price } = req.body;
+  const {
+    plan,
+    bookingDate,
+    slot,
+    numberOfPeople,
+    selectedAddOns,
+    downPayment,
+    location,
+    notes,
+    price,
+  } = req.body;
 
   if (!plan || !bookingDate || !location || !price) {
     res.status(400);
@@ -19,6 +30,7 @@ const createBooking = asyncHandler(async (req, res) => {
     bookingDate,
     slot,
     location,
+    selectedAddOns,
     notes,
     price,
     numberOfPeople,
@@ -26,6 +38,10 @@ const createBooking = asyncHandler(async (req, res) => {
   });
 
   const createdBooking = await booking.save();
+  await Time.updateOne(
+    { date: bookingDate, "times.startTime": slot.startTime, "times.endTime": slot.endTime },
+    { $set: { "times.$.reserved": true } }
+  );
 
   const populatedBooking = await Order.findById(createdBooking._id)
     .populate("user", "name email")
@@ -136,6 +152,16 @@ const cancelBooking = asyncHandler(async (req, res) => {
     booking.canceledAt = Date.now();
 
     const updatedBooking = await booking.save();
+
+    // Free up the reserved slot
+    await Time.updateOne(
+      {
+        date: booking.bookingDate,
+        "times.startTime": booking.slot.startTime,
+        "times.endTime": booking.slot.endTime,
+      },
+      { $set: { "times.$.reserved": false } }
+    );
     res.status(200).json(updatedBooking);
   } else {
     res.status(404);
