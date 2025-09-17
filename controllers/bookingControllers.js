@@ -140,6 +140,20 @@ const markBookingAsCompleted = asyncHandler(async (req, res) => {
     throw new Error("Booking not found");
   }
 });
+const markBookingAsConfirmed = asyncHandler(async (req, res) => {
+  const booking = await Order.findById(req.params.id);
+
+  if (booking) {
+    booking.isConfirmed = true;
+    // booking.completedAt = Date.now();
+
+    const updatedBooking = await booking.save();
+    res.status(200).json(updatedBooking);
+  } else {
+    res.status(404);
+    throw new Error("Booking not found");
+  }
+});
 
 // @desc    Cancel booking
 // @route   PUT /api/bookings/:id/cancel
@@ -185,12 +199,42 @@ const getAllBookings = asyncHandler(async (req, res) => {
     .populate("user", "name email")
     .populate("plan", "name price");
 
+  // Calculate total price of all non-cancelled orders
+  const totalPriceAgg = await Order.aggregate([
+    { $match: { isCanceled: { $ne: true } } }, // exclude cancelled orders
+    {
+      $group: {
+        _id: null,
+        total: { $sum: "$price" }, // sum price field
+      },
+    },
+  ]);
+
   res.status(200).json({
     orders,
     page,
     pages: Math.ceil(count / pageSize),
     total: count,
+    totalRevenue: totalPriceAgg.length > 0 ? totalPriceAgg[0].total : 0,
   });
+});
+
+// @desc    Get all orders by userId
+// @route   GET /api/orders/user/:id
+// @access  Private (or adjust as needed)
+const getOrdersByUserId = asyncHandler(async (req, res) => {
+  const { id } = req.params; // userId from URL
+
+  console.log(id);
+  const orders = await Order.find({ user: id });
+
+  console.log(orders);
+  if (orders && orders.length > 0) {
+    res.json(orders);
+  } else {
+    res.status(404);
+    throw new Error("No orders found for this user");
+  }
 });
 
 module.exports = {
@@ -202,4 +246,6 @@ module.exports = {
   cancelBooking,
   getAllBookings,
   getOrders,
+  markBookingAsConfirmed,
+  getOrdersByUserId,
 };

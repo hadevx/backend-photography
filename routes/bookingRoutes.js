@@ -9,6 +9,8 @@ const {
   markBookingAsCompleted,
   cancelBooking,
   getAllBookings,
+  markBookingAsConfirmed,
+  getOrdersByUserId,
 } = require("../controllers/bookingControllers");
 
 // Base URL: /api/orders
@@ -26,8 +28,11 @@ router.get("/:id", protectUser, getBookingById);
 router.get("/", protectUser, protectAdmin, getAllBookings);
 
 // Booking updates
+router.get("/user-orders/:id", protectUser, getOrdersByUserId);
+
 router.put("/:id/pay", protectUser, markBookingAsPaid);
 router.put("/:id/complete", protectUser, protectAdmin, markBookingAsCompleted);
+router.put("/:id/confirm", protectUser, protectAdmin, markBookingAsConfirmed);
 router.put("/:id/cancel", protectUser, cancelBooking);
 
 module.exports = router;

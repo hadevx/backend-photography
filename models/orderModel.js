@@ -57,9 +57,13 @@ const orderSchema = new Schema(
     paidAt: {
       type: Date,
     },
+    isConfirmed: {
+      type: Boolean,
+      default: false,
+    },
     isCompleted: {
       type: Boolean,
-      default: false, // photographer marked session as completed
+      default: false,
     },
     completedAt: {
       type: Date,
